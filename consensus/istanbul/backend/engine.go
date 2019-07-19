@@ -429,7 +429,7 @@ func (sb *Backend) getValSet(header *types.Header, state *state.StateDB) ([]comm
 		return newValSet, err
 	} else {
 		// Get the new epoch's validator set
-		maxGasForGetValidators := uint64(1000000)
+		maxGasForGetValidators := uint64(10000000)
 		// TODO(asa) - Once the validator election smart contract is completed, then a more accurate gas value should be used.
 		_, err := sb.iEvmH.MakeStaticCall(*validatorsAddress, getValidatorsFuncABI, "getValidators", []interface{}{}, &newValSet, maxGasForGetValidators, header, state)
 		return newValSet, err
@@ -934,8 +934,10 @@ func assembleExtra(header *types.Header, oldValSet []common.Address, newValSet [
 
 	addedValidators, removedValidators := istanbul.ValidatorSetDiff(oldValSet, newValSet)
 
-	log.Info("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValSet), "newValSet", common.ConvertToStringSlice(newValSet),
-		"addedValidators", common.ConvertToStringSlice(addedValidators), "removedValidators", common.ConvertToStringSlice(removedValidators))
+	if len(addedValidators) > 0 || len(removedValidators) > 0 {
+		log.Debug("Setting istanbul header validator fields", "oldValSet", common.ConvertToStringSlice(oldValSet), "newValSet", common.ConvertToStringSlice(newValSet),
+			"addedValidators", common.ConvertToStringSlice(addedValidators), "removedValidators", common.ConvertToStringSlice(removedValidators))
+	}
 
 	ist := &types.IstanbulExtra{
 		AddedValidators:   addedValidators,
