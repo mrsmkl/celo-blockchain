@@ -38,10 +38,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -97,6 +95,7 @@ type Ethereum struct {
 	gcWl   *core.GasCurrencyWhitelist
 	regAdd *core.RegisteredAddresses
 	iEvmH  *core.InternalEVMHandler
+	gpm    *core.GasPriceMinimum
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
@@ -110,8 +109,8 @@ func (s *Ethereum) AddLesServer(ls LesServer) {
 // initialisation of the common Ethereum object)
 func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
-	if config.SyncMode == downloader.LightSync || config.SyncMode == downloader.CeloLatestSync {
-		return nil, errors.New("can't run eth.Ethereum in light sync mode or celolatest mode, use les.LightEthereum")
+	if !config.SyncMode.SyncFullBlockChain() {
+		return nil, errors.New("can't run eth.Ethereum in light sync mode, celolatest mode, or ultralight sync mode, use les.LightEthereum")
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)
@@ -130,6 +129,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
+	fullHeaderChainAvailable := config.SyncMode.SyncFullHeaderChain()
 
 	eth := &Ethereum{
 		config:         config,
@@ -143,12 +143,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		gasPrice:       config.MinerGasPrice,
 		etherbase:      config.Etherbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
-		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, config.SyncMode != downloader.CeloLatestSync),
-	}
-
-	// force to set the istanbul etherbase to node key address
-	if chainConfig.Istanbul != nil {
-		eth.etherbase = crypto.PubkeyToAddress(ctx.NodeKey().PublicKey)
+		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, fullHeaderChainAvailable),
 	}
 
 	log.Info("Initialising Ethereum protocol", "versions", eth.engine.Protocol().Versions, "network", config.NetworkId)
@@ -196,27 +191,34 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Object used to retrieve and cache the gas currency whitelist from the GasCurrencyWhiteList smart contract
 	eth.gcWl = core.NewGasCurrencyWhitelist(eth.regAdd, eth.iEvmH)
+	eth.gpm = core.NewGasPriceMinimum(eth.iEvmH, eth.regAdd)
 
 	// Object used to compare two different prices using any of the whitelisted gas currencies.
 	co := core.NewCurrencyOperator(eth.gcWl, eth.regAdd, eth.iEvmH)
+	random := core.NewRandom(eth.regAdd, eth.iEvmH)
 
 	eth.txPool = core.NewTxPool(config.TxPool, eth.chainConfig, eth.blockchain, co, eth.gcWl, eth.iEvmH)
 	eth.blockchain.Processor().SetGasCurrencyWhitelist(eth.gcWl)
 	eth.blockchain.Processor().SetRegisteredAddresses(eth.regAdd)
+	eth.blockchain.Processor().SetGasPriceMinimum(eth.gpm)
+	eth.blockchain.Processor().SetRandom(random)
 
-	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(eth.chainConfig, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, config.Whitelist, ctx.Server); err != nil {
 		return nil, err
 	}
-	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, config.MinerVerificationRewards, co)
+
+	// If the engine is istanbul, then inject the blockchain, ievmh, and regadd objects to it
+	if istanbul, isIstanbul := eth.engine.(*istanbulBackend.Backend); isIstanbul {
+		istanbul.SetChain(eth.blockchain, eth.blockchain.CurrentBlock)
+		istanbul.SetInternalEVMHandler(eth.iEvmH)
+		istanbul.SetRegisteredAddresses(eth.regAdd)
+		istanbul.SetGasPriceMinimum(eth.gpm)
+	}
+
+	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine, config.MinerRecommit, config.MinerGasFloor, config.MinerGasCeil, eth.isLocalBlock, config.MinerVerificationServiceUrl, co, random, &chainDb)
 	eth.miner.SetExtra(makeExtraData(config.MinerExtraData))
 
-	eth.APIBackend = &EthAPIBackend{eth, nil}
-	gpoParams := config.GPO
-	if gpoParams.Default == nil {
-		gpoParams.Default = config.MinerGasPrice
-	}
-	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams, co)
-
+	eth.APIBackend = &EthAPIBackend{eth}
 	return eth, nil
 }
 
@@ -253,18 +255,21 @@ func CreateDB(ctx *node.ServiceContext, config *Config, name string) (ethdb.Data
 func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
+		log.Debug("Setting up clique consensus engine")
 		return clique.New(chainConfig.Clique, db)
 	}
 	// If Istanbul is requested, set it up
 	if chainConfig.Istanbul != nil {
+		log.Debug("Setting up Istanbul consensus engine")
 		if chainConfig.Istanbul.Epoch != 0 {
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
-		return istanbulBackend.New(&config.Istanbul, ctx.NodeKey(), db)
+		return istanbulBackend.New(&config.Istanbul, db)
 	}
 
 	// Otherwise assume proof-of-work
+	log.Debug("Setting up proof-of-work (pow) consensus engine")
 	switch config.Ethash.PowMode {
 	case ethash.ModeFake:
 		log.Warn("Ethash used in fake mode")
@@ -465,13 +470,20 @@ func (s *Ethereum) StartMining(threads int) error {
 			log.Error("Cannot start mining without etherbase", "err", err)
 			return fmt.Errorf("etherbase missing: %v", err)
 		}
-		if clique, ok := s.engine.(*clique.Clique); ok {
+		clique, isClique := s.engine.(*clique.Clique)
+		istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend)
+		if isIstanbul || isClique {
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
-			clique.Authorize(eb, wallet.SignHash)
+			if isClique {
+				clique.Authorize(eb, wallet.SignHash)
+			}
+			if isIstanbul {
+				istanbul.Authorize(eb, wallet.SignHash)
+			}
 		}
 		// If mining is started, we can disable the transaction rejection mechanism
 		// introduced to speed sync times.
@@ -513,6 +525,7 @@ func (s *Ethereum) GasCurrencyWhitelist() *core.GasCurrencyWhitelist { return s.
 func (s *Ethereum) GasFeeRecipient() common.Address                  { return s.config.Etherbase }
 func (s *Ethereum) RegisteredAddresses() *core.RegisteredAddresses   { return s.regAdd }
 func (s *Ethereum) InternalEVMHandler() *core.InternalEVMHandler     { return s.iEvmH }
+func (s *Ethereum) GasPriceMinimum() *core.GasPriceMinimum           { return s.gpm }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
