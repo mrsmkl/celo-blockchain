@@ -39,11 +39,11 @@ func (c *core) sendPrepare() {
 	})
 }
 
-func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate) error {
+func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCertificate, src istanbul.Validator) error {
 	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePreparedCertificate")
 
 	// Validate the attached proposal
-	if _, err := c.backend.Verify(preparedCertificate.Proposal); err != nil {
+	if _, err := c.backend.Verify(preparedCertificate.Proposal, src); err != nil {
 		return errInvalidPreparedCertificateProposal
 	}
 
