@@ -101,13 +101,14 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 
 	// Here is about to accept the PRE-PREPARE
 	if c.state == StateAcceptRequest {
-		logger.Trace("Accepted preprepare")
 
 		// Send ROUND CHANGE if the locked proposal and the received proposal are different
 		if c.current.IsHashLocked() {
 			if preprepare.Proposal.Hash() == c.current.GetLockedHash() {
 				// Broadcast COMMIT and enters Prepared state directly
 				c.acceptPreprepare(preprepare)
+				id, _ := c.valSet.GetByAddress(src.Address())
+				logger.Trace("Accepted preprepare", "tag", "stateTransition", "from_id", id)
 				c.setState(StatePrepared)
 				c.sendCommit()
 			} else {
@@ -119,6 +120,8 @@ func (c *core) handlePreprepare(msg *message, src istanbul.Validator) error {
 			//   1. the locked proposal and the received proposal match
 			//   2. we have no locked proposal
 			c.acceptPreprepare(preprepare)
+			id, _ := c.valSet.GetByAddress(src.Address())
+			logger.Trace("Accepted preprepare", "tag", "stateTransition", "from_id", id)
 			c.setState(StatePreprepared)
 			c.sendPrepare()
 		}

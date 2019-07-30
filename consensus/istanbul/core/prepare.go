@@ -65,6 +65,7 @@ func (c *core) handlePrepare(msg *message, src istanbul.Validator) error {
 	if ((c.current.IsHashLocked() && prepare.Digest == c.current.GetLockedHash()) || c.current.GetPrepareOrCommitSize() > 2*c.valSet.F()) &&
 		c.state.Cmp(StatePrepared) < 0 {
 		c.current.LockHash()
+		logger.Trace("Transitioning to prepared state", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.setState(StatePrepared)
 		c.sendCommit()
 	}
