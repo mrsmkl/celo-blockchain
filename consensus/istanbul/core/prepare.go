@@ -135,6 +135,7 @@ func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) erro
 		if err := c.current.CreateAndSetPreparedCertificate(c.valSet.F()); err != nil {
 			return err
 		}
+		logger.Trace("Transitioning to prepared state", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.setState(StatePrepared)
 		c.sendCommit()
 	}
