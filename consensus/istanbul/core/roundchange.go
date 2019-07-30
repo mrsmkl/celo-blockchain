@@ -179,6 +179,7 @@ func (c *core) handleDecodedCheckedRoundChange(msg *istanbul.Message, rc *istanb
 
 	if quorumRound != nil && (c.waitingForRoundChange || cv.Round.Cmp(quorumRound) < 0) {
 		// We've received 2f+1 ROUND CHANGE messages, start a new round immediately.
+		logger.Trace("Found 2f+1 round change messages", "tag", "stateTransition", "rcs", c.roundChangeSet.String())
 		c.startNewRound(quorumRound)
 		return nil
 	}

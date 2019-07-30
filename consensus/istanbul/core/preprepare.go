@@ -125,7 +125,8 @@ func (c *core) handlePreprepare(msg *istanbul.Message, src istanbul.Validator) e
 
 	// TODO(asa): Can we skip to COMMIT if we have a PREPARED certificate already?
 	if c.state == StateAcceptRequest {
-		logger.Trace("Accepted preprepare")
+		id, _ := c.valSet.GetByAddress(src.Address())
+		logger.Trace("Accepted preprepare", "tag", "stateTransition", "from_id", id)
 		c.acceptPreprepare(preprepare)
 		c.setState(StatePreprepared)
 		c.sendPrepare()
