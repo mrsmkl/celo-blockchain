@@ -104,6 +104,7 @@ func (sb *Backend) NewChainHead() error {
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
+	logger := sb.logger.New("func", "NewChainHead")
 
 	// If the last block of the epoch has just been added to the blockchain, then
 	// establish 'validator' type connections to all validators in the upcoming epoch
@@ -114,6 +115,7 @@ func (sb *Backend) NewChainHead() error {
 		go sb.RefreshValPeers(sb.getValidators(currentBlock.Number().Uint64(), currentBlock.Hash()))
 	}
 
+	logger.Trace("Posting empty istanbul FinalCommittedEvent")
 	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	return nil
 }
