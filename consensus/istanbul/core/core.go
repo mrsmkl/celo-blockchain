@@ -190,17 +190,17 @@ func (c *core) commit() {
 
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
 func (c *core) startNewRound(round *big.Int) {
-	var logger log.Logger
-	if c.current == nil {
-		logger = c.logger.New("old_round", -1, "old_seq", 0, "func", "startNewRound", "tag", "stateTransition")
-	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
-	}
-
 	roundChange := false
 	// Try to get last proposal
 	// TODO(asa): Consider renaming to "currentHead"
 	lastProposal, lastProposer := c.backend.LastProposal()
+	var logger log.Logger
+	if c.current == nil {
+		logger = c.logger.New("old_round", -1, "old_seq", 0, "func", "startNewRound", "tag", "stateTransition")
+	} else {
+		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition", "lastProposalNumber", lastProposal.Number().Int64())
+	}
+
 	if c.current == nil {
 		logger.Trace("Start to the initial round")
 	} else if lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
