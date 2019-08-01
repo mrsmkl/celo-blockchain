@@ -642,11 +642,6 @@ var (
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
 	}
-	IstanbulFaultyModeFlag = cli.Uint64Flag{
-		Name:  "istanbul.faultymode",
-		Usage: "0: not faulty, 1: inject random faults, 2+ specific faults (see code)",
-		Value: eth.DefaultConfig.Istanbul.FaultyMode,
-	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1126,9 +1121,6 @@ func setIstanbul(ctx *cli.Context, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
 		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
-	}
-	if ctx.GlobalIsSet(IstanbulFaultyModeFlag.Name) {
-		cfg.Istanbul.FaultyMode = ctx.GlobalUint64(IstanbulFaultyModeFlag.Name)
 	}
 }
 
