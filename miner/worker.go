@@ -465,9 +465,9 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
-			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewChainHead()
-			}
+			// if h, ok := w.engine.(consensus.Handler); ok {
+			// 	h.NewChainHead()
+			// }
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
 		case ev := <-w.chainSideCh:
