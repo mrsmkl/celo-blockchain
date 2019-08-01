@@ -182,7 +182,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 }
 
 func (c *core) handleTimeoutMsg() {
-	logger := c.logger.New()
+	logger := c.logger.New("func", "handleTimeoutMsg")
 
 	// If we're not waiting for round change yet, we can try to catch up
 	// the max round with F+1 round change message. We only need to catch up
@@ -198,7 +198,7 @@ func (c *core) handleTimeoutMsg() {
 
 	lastProposal, _ := c.backend.LastProposal()
 	if lastProposal != nil && lastProposal.Number().Cmp(c.current.Sequence()) >= 0 {
-		logger.Trace("round change timeout, catch up latest sequence", "number", lastProposal.Number().Uint64(), "tag", "stateTransition")
+		logger.Trace("round change timeout, catch up latest sequence", "number", lastProposal.Number().Uint64(), "tag", "stateTransition", "cur_seq", c.current.Sequence())
 		c.startNewRound(common.Big0)
 	} else {
 		logger.Trace("round change timeout, send next round change")
