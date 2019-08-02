@@ -101,10 +101,9 @@ func (ms *messageSet) addVerifiedMessage(msg *istanbul.Message) error {
 func (ms *messageSet) String() string {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
-	ids := make([]string, 0, len(ms.messages))
+	addresses := make([]string, 0, len(ms.messages))
 	for _, v := range ms.messages {
-		id, _ := ms.valSet.GetByAddress(v.Address)
-		ids = append(ids, fmt.Sprintf("%v", id))
+		addresses = append(addresses, v.Address.String())
 	}
-	return fmt.Sprintf("[<%v> %v]", len(ms.messages), strings.Join(ids, ", "))
+	return fmt.Sprintf("[<%v> %v]", len(ms.messages), strings.Join(addresses, ", "))
 }

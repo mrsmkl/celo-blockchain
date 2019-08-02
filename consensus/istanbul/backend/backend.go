@@ -167,6 +167,7 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 
 // Gossip implements istanbul.Backend.Gossip
 func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error {
+	logger := sb.logger.New("func", "Gossip", "msgCode", msgCode)
 	var hash common.Hash
 	if !ignoreCache {
 		hash = istanbul.RLPHash(payload)
@@ -204,7 +205,7 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 				m.Add(hash, true)
 				sb.recentMessages.Add(addr, m)
 			}
-
+			logger.Trace("Sending message", "peerAddress", addr)
 			go p.Send(msgCode, payload)
 		}
 	}
