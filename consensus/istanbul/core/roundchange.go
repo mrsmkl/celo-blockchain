@@ -136,7 +136,7 @@ func (c *core) handleRoundChangeCertificate(roundChangeCertificate istanbul.Roun
 
 func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) error {
 	idx, _ := c.valSet.GetByAddress(src.Address())
-	logger := c.logger.New("state", c.state, "from", src.Address().Hex(), "from_id", idx, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange")
+	logger := c.logger.New("state", c.state, "from", src.Address().Hex(), "from_id", idx, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleRoundChange", "tag", "handleMsg")
 
 	// Decode ROUND CHANGE message
 	var rc *istanbul.RoundChange
@@ -146,14 +146,15 @@ func (c *core) handleRoundChange(msg *istanbul.Message, src istanbul.Validator) 
 	}
 
 	if err := c.checkMessage(istanbul.MsgRoundChange, rc.View); err != nil {
+		logger.Info("Check round change message failed", "err", err)
 		return err
 	}
-
 	return c.handleDecodedCheckedRoundChange(msg, rc, src)
 }
 
 func (c *core) handleDecodedCheckedRoundChange(msg *istanbul.Message, rc *istanbul.RoundChange, src istanbul.Validator) error {
-	logger := c.logger.New("state", c.state, "from", src.Address().Hex(), "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleDecodedCheckedRoundChange")
+	idx, _ := c.valSet.GetByAddress(src.Address())
+	logger := c.logger.New("state", c.state, "from", src.Address().Hex(), "from_id", idx, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handleDecodedCheckedRoundChange", "tag", "handleMsg")
 
 	cv := c.currentView()
 	roundView := rc.View
@@ -162,6 +163,7 @@ func (c *core) handleDecodedCheckedRoundChange(msg *istanbul.Message, rc *istanb
 	if rc.HasPreparedCertificate() {
 		if err := c.handlePreparedCertificate(rc.PreparedCertificate, src); err != nil {
 			// TODO(asa): Should we still accept the round change message without the certificate if this fails?
+			logger.Warn("Invalid preparedCertificate", "err", err, "preparedCertificate", rc.PreparedCertificate)
 			return err
 		}
 	}

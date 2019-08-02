@@ -110,7 +110,7 @@ func (c *core) handlePreparedCertificate(preparedCertificate istanbul.PreparedCe
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePrepare")
+	logger := c.logger.New("state", c.state, "cur_round", c.current.Round(), "cur_seq", c.current.Sequence(), "func", "handlePrepare", "tag", "handleMsg")
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
