@@ -132,7 +132,7 @@ func (c *core) sendEvent(ev interface{}) {
 }
 
 func (c *core) handleMsg(payload []byte) error {
-	logger := c.logger.New()
+	logger := c.logger.New("func", "handleMsg")
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
@@ -152,14 +152,14 @@ func (c *core) handleMsg(payload []byte) error {
 }
 
 func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.logger.New("address", c.address, "from", src)
+	logger := c.logger.New("address", c.address, "from", src, "func", "handleCheckedMsg", "tag", "handleMsg")
 
 	// Store the message if it's a future message
 	testBacklog := func(err error) error {
 		if err == errFutureMessage {
 			c.storeBacklog(msg, src)
 		} else if err == errTooFarInTheFutureMessage {
-			logger.Trace("Dropping message too far in the future", "msg", msg)
+			logger.Trace("Dropping message too far in the future", "message", msg)
 		}
 
 		return err

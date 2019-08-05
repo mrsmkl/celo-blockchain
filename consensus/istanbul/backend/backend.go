@@ -167,6 +167,7 @@ func (sb *Backend) Broadcast(valSet istanbul.ValidatorSet, payload []byte) error
 
 // Gossip implements istanbul.Backend.Gossip
 func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode uint64, ignoreCache bool) error {
+	logger := sb.logger.New("func", "Gossip", "msgCode", msgCode)
 	var hash common.Hash
 	if !ignoreCache {
 		hash = istanbul.RLPHash(payload)
@@ -204,7 +205,7 @@ func (sb *Backend) Gossip(valSet istanbul.ValidatorSet, payload []byte, msgCode 
 				m.Add(hash, true)
 				sb.recentMessages.Add(addr, m)
 			}
-
+			logger.Trace("Sending message", "peerAddress", addr)
 			go p.Send(msgCode, payload)
 		}
 	}
@@ -264,16 +265,18 @@ func (sb *Backend) EventMux() *event.TypeMux {
 
 // Verify implements istanbul.Backend.Verify
 func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (time.Duration, error) {
+	logger := sb.logger.New("func", "Verify", "from", src.Address(), "number", proposal.Number())
 	// Check if the proposal is a valid block
 	block := &types.Block{}
 	block, ok := proposal.(*types.Block)
 	if !ok {
-		sb.logger.Error("Invalid proposal, %v", proposal)
+		logger.Error("Invalid proposal", "proposal", proposal)
 		return 0, errInvalidProposal
 	}
 
 	// check bad block
 	if sb.HasBadProposal(block.Hash()) {
+		logger.Error("Has bad proposal with this block hash (?)")
 		return 0, core.ErrBlacklistedHash
 	}
 
@@ -281,15 +284,18 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 	txnHash := types.DeriveSha(block.Transactions())
 	uncleHash := types.CalcUncleHash(block.Uncles())
 	if txnHash != block.Header().TxHash {
+		logger.Error("Mismatched Tx Hashes", "txnHash", txnHash, "blockTxnHash", block.Header().TxHash)
 		return 0, errMismatchTxhashes
 	}
 	if uncleHash != nilUncleHash {
+		logger.Error("Uncle hash is not nil uncle hash", "uncleHash", uncleHash)
 		return 0, errInvalidUncleHash
 	}
 
 	// verify the header of proposed block
 	if block.Header().Coinbase != src.Address() {
-		return 0, errInvalidCoinbase
+		logger.Error("Coinbase does not match proposer's address. Continuiing anyways", "coinbase", block.Header().Coinbase)
+		// return 0, errInvalidCoinbase
 	}
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
@@ -298,6 +304,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 		if err == consensus.ErrFutureBlock {
 			return time.Unix(block.Header().Time.Int64(), 0).Sub(now()), consensus.ErrFutureBlock
 		} else {
+			logger.Error("Error verifying the block headers", "err", err)
 			return 0, err
 		}
 	}
@@ -306,7 +313,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 	// Get the state from this block's parent.
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
-		log.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
+		logger.Error("Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
 		return 0, err
 	}
 
@@ -316,20 +323,20 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 	// Apply this block's transactions to update the state
 	receipts, _, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
-		log.Error("verify - Error in processing the block", "err", err)
+		logger.Error("Error in processing the block", "err", err)
 		return 0, err
 	}
 
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
-		log.Error("verify - Error in validating the block", "err", err)
+		logger.Error("Error in validating the block", "err", err)
 		return 0, err
 	}
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
-			log.Error("verify - Error in verifying the val set diff", "err", err)
+			logger.Error("Error in verifying the val set diff", "err", err)
 			return 0, err
 		}
 	}

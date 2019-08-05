@@ -88,7 +88,7 @@ func (c *core) checkMessage(msgCode uint64, view *istanbul.View) error {
 }
 
 func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
-	logger := c.logger.New("from", src, "state", c.state)
+	logger := c.logger.New("from", src, "state", c.state, "func", "storeBacklog", "tag", "handleMsg")
 
 	if src.Address() == c.Address() {
 		logger.Warn("Backlog from self")
@@ -114,7 +114,7 @@ func (c *core) storeBacklog(msg *istanbul.Message, src istanbul.Validator) {
 		v = p.View
 	}
 
-	logger.Trace("Store future message", "msg", msg)
+	logger.Trace("Store future message", "message", msg)
 
 	c.backlogsMu.Lock()
 	defer c.backlogsMu.Unlock()

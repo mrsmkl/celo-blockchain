@@ -198,7 +198,7 @@ func (c *core) startNewRound(round *big.Int) {
 	if c.current == nil {
 		logger = c.logger.New("old_round", -1, "old_seq", 0, "func", "startNewRound", "tag", "stateTransition")
 	} else {
-		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition", "lastProposalNumber", lastProposal.Number().Int64())
+		logger = c.logger.New("old_round", c.current.Round(), "old_seq", c.current.Sequence(), "func", "startNewRound", "tag", "stateTransition")
 	}
 
 	if c.current == nil {
