@@ -294,8 +294,8 @@ func (sb *Backend) Verify(proposal istanbul.Proposal, src istanbul.Validator) (t
 
 	// verify the header of proposed block
 	if block.Header().Coinbase != src.Address() {
-		logger.Error("Coinbase does not match proposer's address", "coinbase", block.Header().Coinbase)
-		return 0, errInvalidCoinbase
+		logger.Error("Coinbase does not match proposer's address. Continuiing anyways", "coinbase", block.Header().Coinbase)
+		// return 0, errInvalidCoinbase
 	}
 	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
