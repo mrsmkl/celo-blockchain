@@ -267,22 +267,30 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 	if err != nil {
 		return err
 	}
+	log.Warn("got extra")
 
 	// The length of Committed seals should be larger than 0
 	if len(extra.AggregatedSeal.Signature) == 0 {
 		return errEmptyAggregatedSeal
 	}
 
+	log.Warn("there aws commiteed seals")
+
 	// Check the signatures on the current header
 	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
+
+	log.Warn("got snapshot")
+
 	validators := snap.ValSet.Copy()
 	err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
 	if err != nil {
 		return err
 	}
+
+	log.Warn("verifying seal")
 
 	// The genesis block is skipped since it has no parents.
 	// The first block is also skipped, since its parent
@@ -361,6 +369,8 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 		return errInvalidExtraDataFormat
 	}
 
+	log.Warn("extracted header")
+
 	// Acquire the validator set whose signatures will be verified.
 	// FIXME: Based on the current implemenation of validator set construction, only validator sets
 	// from the canonical chain will be used. This means that if the provided header is a valid
@@ -368,6 +378,9 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	// happens to be the same as the canonical chain at the same block number (as would be the case
 	// for a fork from the canonical chain which does not cross an epoch boundary)
 	valSet := sb.getValidators(header.Number.Uint64()-1, header.ParentHash)
+
+	log.Warn("got vlidators", "set", valSet)
+
 	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
