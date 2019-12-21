@@ -354,6 +354,8 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 		return errUnknownBlock
 	}
 
+	log.Warn("block number ok")
+
 	extra, err := types.ExtractIstanbulExtra(header)
 	if err != nil {
 		return errInvalidExtraDataFormat

@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+    "encoding/hex"
 	"math/big"
 	"strings"
 	"time"
@@ -934,6 +935,18 @@ func (s *PublicBlockChainAPI) rpcOutputBlock(b *types.Block, inclTx bool, fullTx
 		return nil, err
 	}
 	fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(b.Hash()))
+	h := b.Header()
+	if h.MixDigest == types.IstanbulDigest {
+		// Seal is reserved in extra-data. To prove block is signed by the proposer.
+		log.Warn("Istanbul header detected")
+		if istanbulHeader := types.IstanbulFilteredHeader(h, true); istanbulHeader != nil {
+			res, _ := rlp.EncodeToBytes(istanbulHeader)
+			fields["raw"] = "0x" + hex.EncodeToString(res)
+		}
+	} else {
+		res, _ := rlp.EncodeToBytes(h)
+		fields["raw"] = "0x" + hex.EncodeToString(res)
+	}
 	return fields, err
 }
 

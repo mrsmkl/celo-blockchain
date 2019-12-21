@@ -770,6 +770,7 @@ func (c *getParentSealBitmap) RequiredGas(input []byte) uint64 {
 // Return the signer bitmap from the parent seal of a past block in the chain.
 // Requested parent seal must have occurred within 4 epochs of the current block number.
 func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	log.Warn("Getting parent seal", "input", input)
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
@@ -817,10 +818,13 @@ func (c *getVerifiedSealBitmap) RequiredGas(input []byte) uint64 {
 }
 
 func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	log.Warn("get verified seal bitmap", "input", input)
 	gas, err := debitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
+
+	log.Warn("debited gas")
 
 	// input is comprised of a single argument:
 	//   header:  rlp encoded block header
@@ -829,10 +833,14 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 		return nil, gas, ErrInputDecode
 	}
 
+	log.Warn("decoded header", "header", header)
+
 	// Verify the seal against the engine rules.
 	if !evm.Context.VerifySeal(&header) {
 		return nil, gas, ErrInputVerification
 	}
+
+	log.Warn("extract seal")
 
 	// Extract the verified seal from the header.
 	extra, err := types.ExtractIstanbulExtra(&header)
