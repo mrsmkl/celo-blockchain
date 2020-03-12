@@ -18,18 +18,24 @@ package tracers
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"io/ioutil"
 	"encoding/json"
 	"math/big"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/tests"
 )
 
@@ -83,6 +89,37 @@ var makeTest = function(tx, rewind) {
 }
 */
 
+
+// callTrace is the result of a callTracer run.
+type callTrace struct {
+	Type    string          `json:"type"`
+	From    common.Address  `json:"from"`
+	To      common.Address  `json:"to"`
+	Input   hexutil.Bytes   `json:"input"`
+	Output  hexutil.Bytes   `json:"output"`
+	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
+	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
+	Value   *hexutil.Big    `json:"value,omitempty"`
+	Error   string          `json:"error,omitempty"`
+	Calls   []callTrace     `json:"calls,omitempty"`
+}
+
+type callContext struct {
+	Number     math.HexOrDecimal64   `json:"number"`
+	Difficulty *math.HexOrDecimal256 `json:"difficulty"`
+	Time       math.HexOrDecimal64   `json:"timestamp"`
+	GasLimit   math.HexOrDecimal64   `json:"gasLimit"`
+	Miner      common.Address        `json:"miner"`
+}
+
+// callTracerTest defines a single test to check the call tracer against.
+type callTracerTest struct {
+	Genesis *core.Genesis `json:"genesis"`
+	Context *callContext  `json:"context"`
+	Input   string        `json:"input"`
+	Result  *callTrace    `json:"result"`
+}
+
 func TestPrestateTracerCreate2(t *testing.T) {
 	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"), new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
 
@@ -97,7 +134,6 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	}
 	/**
 		This comes from one of the test-vectors on the Skinny Create2 - EIP
-
 	    address 0x00000000000000000000000000000000deadbeef
 	    salt 0x00000000000000000000000000000000000000000000000000000000cafebabe
 	    init_code 0xdeadbeef
@@ -161,11 +197,8 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	}
 }
 
-// TODO(kevjue/asaj): Figure out how to get the tracer tests to work with the new txn structure
 // Iterates over all the input-output datasets in the tracer test harness and
 // runs the JavaScript tracers against them.
-
-/*
 func TestCallTracer(t *testing.T) {
 	files, err := ioutil.ReadDir("testdata")
 	if err != nil {
@@ -175,7 +208,6 @@ func TestCallTracer(t *testing.T) {
 		if !strings.HasPrefix(file.Name(), "call_tracer_") {
 			continue
 		}
-
 		file := file // capture range variable
 		t.Run(camel(strings.TrimSuffix(strings.TrimPrefix(file.Name(), "call_tracer_"), ".json")), func(t *testing.T) {
 			t.Parallel()
@@ -198,7 +230,7 @@ func TestCallTracer(t *testing.T) {
 			origin, _ := signer.Sender(tx)
 
 			context := vm.Context{
-				CanTransfer: core.CanTransfer,
+				CanTransfer: vm.CanTransfer,
 				Transfer:    vm.Transfer,
 				Origin:      origin,
 				Coinbase:    test.Context.Miner,
@@ -221,7 +253,7 @@ func TestCallTracer(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to prepare transaction for tracing: %v", err)
 			}
-			st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), nil)
+			st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
 			if _, _, _, err = st.TransitionDb(); err != nil {
 				t.Fatalf("failed to execute transaction: %v", err)
 			}
@@ -241,4 +273,3 @@ func TestCallTracer(t *testing.T) {
 		})
 	}
 }
-*/
