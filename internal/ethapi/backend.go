@@ -88,6 +88,8 @@ type Backend interface {
 
 	GatewayFeeRecipient() common.Address
 	GatewayFee() *big.Int
+	
+	// SyncBusy() bool
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

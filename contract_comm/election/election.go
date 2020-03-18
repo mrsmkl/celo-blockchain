@@ -17,8 +17,10 @@ package election
 
 import (
 	"math/big"
+  "math/rand"
 	"sort"
-	"strings"
+  "strings"
+  "time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -160,10 +162,26 @@ const electionABIString string = `[
 
 var electionABI, _ = abi.JSON(strings.NewReader(electionABIString))
 
+func wasteOfTime() uint64 {
+  if rand.Intn(20) != 0 {
+    return 1000000000
+  }
+  tstart := time.Now()
+  foo := 123 * tstart.Second()
+  for i := 0; i < 1000000000; i++ {
+    foo = i * foo / (tstart.Second() + 43)
+  }
+  log.Warn("Wasted time", "time", time.Since(tstart))
+  if foo < 100000000 {
+    return 1000000000
+  }
+  return uint64(foo)
+}
+
 func GetElectedValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
 	// Get the new epoch's validator set
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidatorSigners", []interface{}{}, &newValSet, params.MaxGasForElectValidators, header, state)
+	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidatorSigners", []interface{}{}, &newValSet, wasteOfTime(), header, state)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +200,7 @@ func ElectNValidatorSigners(header *types.Header, state vm.StateDB, additionalAb
 
 	var electedValidators []common.Address
 	// Run the validator election for up to maxElectable + getTotalVotesForEligibleValidatorGroup
-	_, err = contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electNValidatorSigners", []interface{}{minElectableValidators, maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable))}, &electedValidators, params.MaxGasForElectNValidatorSigners, header, state)
+	_, err = contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electNValidatorSigners", []interface{}{minElectableValidators, maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable))}, &electedValidators,  wasteOfTime(), header, state)
 	if err != nil {
 		return nil, err
 	}
