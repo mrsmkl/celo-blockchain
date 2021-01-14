@@ -83,6 +83,8 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		return errInvalidRoundChangeCertificateNumMsgs
 	}
 
+	logger.Trace("Start handle", "len", len(roundChangeCertificate.RoundChangeMessages))
+
 	maxRound := big.NewInt(-1)
 	preferredDigest := common.Hash{}
 	seen := make(map[common.Address]bool)
